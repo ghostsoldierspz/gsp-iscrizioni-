@@ -102,6 +102,9 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(.6);cursor:p
 .minore-section{display:none;margin-top:20px;padding:20px;background:rgba(192,56,40,.05);border:1px dashed var(--red-d)}
 .minore-section.vis{display:block}
 .minore-title{font-family:'Rajdhani',sans-serif;font-size:14px;letter-spacing:2px;text-transform:uppercase;color:#e05040;margin-bottom:16px}
+.minore-auto-banner{display:none;margin-top:10px;padding:10px 14px;background:rgba(192,56,40,.12);border:1px solid var(--red-d);font-family:var(--mono);font-size:11px;color:#e05040;letter-spacing:.5px}
+.minore-auto-banner.vis{display:block}
+.minore-lock{pointer-events:none;opacity:.6}
 
 /* OTP */
 .otp-row{display:flex;gap:12px;margin-bottom:20px}
@@ -234,7 +237,7 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(.6);cursor:p
     <div class="form-grid cols-3">
         <div class="field-group"><label>Comune di Nascita <span class="req">*</span></label><input type="text" id="f_luogo_nascita" placeholder="Comune"></div>
         <div class="field-group"><label>Prov. <span class="req">*</span></label><input type="text" id="f_prov_nascita" placeholder="PZ" maxlength="2" style="text-transform:uppercase"></div>
-        <div class="field-group"><label>Data di Nascita <span class="req">*</span></label><input type="date" id="f_data_nascita"></div>
+        <div class="field-group"><label>Data di Nascita <span class="req">*</span></label><input type="date" id="f_data_nascita" onchange="checkMinore()"></div>
         <div class="field-group" style="grid-column:2/3"></div>
     </div>
 
@@ -262,10 +265,11 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(.6);cursor:p
 
     <div class="section-sep"><span>Stato del richiedente</span></div>
     <div class="declaration-item" id="minore-wrap">
-        <div class="declaration-header" onclick="toggleMinore()">
+        <div class="declaration-header" id="minore-toggle-btn" onclick="toggleMinore()">
             <div class="custom-check" id="chk-minore"></div>
             <div class="decl-text"><strong>Il/La richiedente è minorenne</strong> (meno di 18 anni)<div class="decl-law">Se selezionato, saranno richiesti i dati del genitore/tutore legale responsabile</div></div>
         </div>
+        <div class="minore-auto-banner" id="minore-auto-banner">⚠ Rilevato automaticamente dalla data di nascita — il candidato è minorenne. I dati del genitore/tutore sono obbligatori.</div>
     </div>
     <div class="minore-section" id="minore-section">
         <div class="minore-title">⚠ Dati Genitore / Tutore Legale</div>
@@ -455,15 +459,15 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(.6);cursor:p
    ================================================================ */
 
 const CONFIG = {
-    emailjs_public_key:    "KxZzByKPMR0lrwXRs",
-    emailjs_service_id:    "service_lqwpsoq",
-    emailjs_otp_template:  "template_wtzx469",
-    emailjs_notify_template: "template_jefe718",
+    emailjs_public_key:    "INSERISCI_PUBLIC_KEY",
+    emailjs_service_id:    "INSERISCI_SERVICE_ID",
+    emailjs_otp_template:  "INSERISCI_TEMPLATE_OTP_ID",
+    emailjs_notify_template: "INSERISCI_TEMPLATE_NOTIFY_ID",
     asd_email:             "ghostsoldierspotenza@gmail.com",
-    legale_rapp:           "Michele Tramutola",
-    anno_sp:               "2025-2026",
+    legale_rapp:           "INSERISCI_NOME_LEGALE_RAPPRESENTANTE",
+    anno_sp:               "2025/2026",
     otp_expire_min:        15,
-    test_mode:             false   // ← false per produzione con EmailJS configurato
+    test_mode:             true   // ← false per produzione con EmailJS configurato
 };
 
 /* ─── State ─── */
@@ -563,6 +567,44 @@ function fmtDate(s) {
 }
 function showLoad(t) { document.getElementById('loader-txt').textContent = t||'Elaborazione...'; document.getElementById('loader').classList.add('vis'); }
 function hideLoad() { document.getElementById('loader').classList.remove('vis'); }
+
+/* ─── Minore auto-detection ─── */
+function checkMinore() {
+    const val = document.getElementById('f_data_nascita').value;
+    if (!val) return;
+    const birthDate = new Date(val);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
+    const isUnder18 = age < 18;
+    const banner = document.getElementById('minore-auto-banner');
+    const toggleBtn = document.getElementById('minore-toggle-btn');
+    if (isUnder18) {
+        // forza minorenne ON e blocca il toggle manuale
+        if (!isMinore) {
+            isMinore = true;
+            document.getElementById('chk-minore').classList.add('on');
+            document.getElementById('minore-section').classList.add('vis');
+            document.getElementById('minore-wrap').classList.add('checked');
+        }
+        banner.classList.add('vis');
+        toggleBtn.classList.add('minore-lock');
+        toggleBtn.onclick = null; // disabilita toggle manuale
+    } else {
+        // maggiorenne: sblocca toggle manuale
+        banner.classList.remove('vis');
+        toggleBtn.classList.remove('minore-lock');
+        toggleBtn.onclick = toggleMinore;
+        // se era stato forzato, resetta
+        if (isMinore) {
+            isMinore = false;
+            document.getElementById('chk-minore').classList.remove('on');
+            document.getElementById('minore-section').classList.remove('vis');
+            document.getElementById('minore-wrap').classList.remove('checked');
+        }
+    }
+}
 
 function toggleMinore() {
     isMinore = !isMinore;
@@ -767,16 +809,66 @@ function makePDF() {
 }
 
 /* ─── Admin notification ─── */
+function buildNotifyHTML(f) {
+    const genitoreRows = f.minore ? `
+        <tr><td colspan="2" style="background:#fff3cd;padding:6px 10px;font-weight:bold;color:#856404;font-size:11px;letter-spacing:1px">⚠ CANDIDATO MINORENNE</td></tr>
+        <tr><td style="color:#666;font-size:12px;padding:4px 10px;width:160px">Genitore/Tutore</td><td style="font-size:13px;padding:4px 10px;font-weight:500">${f.g_cognome} ${f.g_nome} (${f.g_rel})</td></tr>` : '';
+    const patRow = f.patologie !== 'Nessuna allergia o patologia dichiarata'
+        ? `<tr style="background:#fff3cd"><td style="color:#856404;font-size:12px;padding:4px 10px;font-weight:bold">⚠ Allergie/Patologie</td><td style="font-size:13px;padding:4px 10px;color:#856404">${f.patologie}</td></tr>`
+        : `<tr><td style="color:#666;font-size:12px;padding:4px 10px">Allergie/Patologie</td><td style="font-size:13px;padding:4px 10px">Nessuna dichiarata</td></tr>`;
+    return `
+<div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto">
+  <div style="background:#1c2414;padding:16px 20px;border-bottom:3px solid #7a9040">
+    <p style="color:#9cb84e;font-size:11px;letter-spacing:2px;margin:0 0 4px">A.S.D. GHOST SOLDIERS POTENZA — NUOVA ISCRIZIONE</p>
+    <p style="color:#ffffff;font-size:20px;font-weight:bold;margin:0">${f.fullname}</p>
+    <p style="color:#a8b490;font-size:12px;margin:4px 0 0">Anno Sportivo ${CONFIG.anno_sp} &nbsp;·&nbsp; ${f.ts}</p>
+  </div>
+  <div style="background:#f4f4f2;padding:12px 20px;border-bottom:1px solid #d0d0ce">
+    <p style="font-size:11px;color:#4a5e30;letter-spacing:1px;margin:0;font-weight:bold">✓ FIRMA ELETTRONICA AVANZATA VERIFICATA &nbsp;·&nbsp; OTP: ${f.otp_mask} &nbsp;·&nbsp; CAD D.lgs. 82/2005</p>
+  </div>
+  <table style="width:100%;border-collapse:collapse;background:#fff">
+    <tr style="background:#e8ede0"><td colspan="2" style="padding:8px 10px;font-size:11px;font-weight:bold;letter-spacing:1px;color:#1c2414">DATI ANAGRAFICI</td></tr>
+    <tr><td style="color:#666;font-size:12px;padding:4px 10px;width:160px">Cognome e Nome</td><td style="font-size:13px;padding:4px 10px;font-weight:600">${f.cognome} ${f.nome}</td></tr>
+    <tr style="background:#f9f9f9"><td style="color:#666;font-size:12px;padding:4px 10px">Data di nascita</td><td style="font-size:13px;padding:4px 10px">${f.data_nascita}</td></tr>
+    <tr><td style="color:#666;font-size:12px;padding:4px 10px">Luogo di nascita</td><td style="font-size:13px;padding:4px 10px">${f.luogo_nascita} (${f.prov_nascita})</td></tr>
+    <tr style="background:#f9f9f9"><td style="color:#666;font-size:12px;padding:4px 10px">Residenza</td><td style="font-size:13px;padding:4px 10px">${f.comune_res} (${f.prov_res}), ${f.via}</td></tr>
+    ${genitoreRows}
+    <tr style="background:#e8ede0"><td colspan="2" style="padding:8px 10px;font-size:11px;font-weight:bold;letter-spacing:1px;color:#1c2414">DOCUMENTO E CONTATTI</td></tr>
+    <tr><td style="color:#666;font-size:12px;padding:4px 10px">Documento</td><td style="font-size:13px;padding:4px 10px">${f.tipo_doc} n. ${f.num_doc}</td></tr>
+    <tr style="background:#f9f9f9"><td style="color:#666;font-size:12px;padding:4px 10px">Rilasciato il</td><td style="font-size:13px;padding:4px 10px">${f.data_rilascio} da ${f.ente_rilascio}</td></tr>
+    <tr><td style="color:#666;font-size:12px;padding:4px 10px">Cellulare</td><td style="font-size:13px;padding:4px 10px">${f.cellulare}</td></tr>
+    <tr style="background:#f9f9f9"><td style="color:#666;font-size:12px;padding:4px 10px">Email</td><td style="font-size:13px;padding:4px 10px">${f.email}</td></tr>
+    <tr style="background:#e8ede0"><td colspan="2" style="padding:8px 10px;font-size:11px;font-weight:bold;letter-spacing:1px;color:#1c2414">AUTOCERTIFICAZIONE SANITARIA</td></tr>
+    ${patRow}
+    <tr style="background:#e8ede0"><td colspan="2" style="padding:8px 10px;font-size:11px;font-weight:bold;letter-spacing:1px;color:#1c2414">DICHIARAZIONI ACCETTATE</td></tr>
+    <tr><td colspan="2" style="padding:6px 10px;font-size:12px;color:#333;line-height:1.7">
+      ☑ Conoscenza e condivisione dell'attività sportiva Softair<br>
+      ☑ Accettazione rischi connessi (L. 110/1975 art. 2 co. 3)<br>
+      ☑ Dichiarazione penale (incensurato/a, nessun carico pendente)<br>
+      ☑ Statuto e Regolamento interno accettati<br>
+      ☑ Manleva e liberatoria di responsabilità firmata<br>
+      ☑ Consenso trattamento dati personali (art. 13 GDPR)<br>
+      ☑ Sana e robusta costituzione — autocertificazione DPR 445/2000<br>
+      ☑ Consenso dati sanitari (art. 9 GDPR)
+    </td></tr>
+    <tr style="background:#1c2414"><td colspan="2" style="padding:10px;font-size:11px;color:#a8b490;text-align:center">
+      Il candidato ha scaricato il PDF firmato in 2 copie (Modulo + Autocertificazione).<br>
+      Verificare la documentazione e procedere all'iscrizione nel Libro Soci.
+    </td></tr>
+  </table>
+</div>`;
+}
+
 async function notifyAdmin() {
     if (CONFIG.test_mode || CONFIG.emailjs_notify_template === "INSERISCI_TEMPLATE_NOTIFY_ID") return;
     const f = fData;
     try {
         await emailjs.send(CONFIG.emailjs_service_id, CONFIG.emailjs_notify_template, {
             to_email: CONFIG.asd_email,
-            candidato: f.fullname, email: f.email, cellulare: f.cellulare,
-            data_nascita: f.data_nascita, comune_res: `${f.comune_res} (${f.prov_res})`,
-            documento: `${f.tipo_doc} n. ${f.num_doc}`, timestamp: f.ts,
-            otp_mask: f.otp_mask, anno_sp: CONFIG.anno_sp
+            candidato: f.fullname,
+            anno_sp: CONFIG.anno_sp,
+            timestamp: f.ts,
+            pdf_content: buildNotifyHTML(f)
         });
     } catch(e) { console.warn('Admin notify failed:', e); }
 }
