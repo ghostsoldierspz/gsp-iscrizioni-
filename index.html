@@ -196,9 +196,8 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(.6);cursor:p
     .print-note{font-size:7.5pt;color:#999;margin-top:14px;text-align:center}
 }
 /* RENDER PDF — stili attivi durante generazione html2pdf */
-#print-area.rendering{display:block!important;position:fixed;left:-9999px;top:0;width:210mm;background:white;color:black;font-family:Arial,sans-serif}
-#print-area.rendering .print-page{padding:15mm;font-size:9.5pt;line-height:1.5;page-break-after:always;background:white}
-#print-area.rendering .print-page:last-child{page-break-after:auto}
+#print-area.rendering{display:block!important;position:static;left:-9999px;top:0;width:210mm;background:white;color:black;font-family:Arial,sans-serif}
+#print-area.rendering .print-page{padding:15mm;font-size:9.5pt;line-height:1.5;background:white}
 #print-area.rendering .print-hdr{text-align:center;border-bottom:2px solid black;padding-bottom:10px;margin-bottom:16px}
 #print-area.rendering .print-hdr h2{font-size:13pt;margin-bottom:3px;color:black}
 #print-area.rendering .print-hdr p{font-size:8.5pt;color:#444}
@@ -447,7 +446,7 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(.6);cursor:p
     <p style="font-size:13px;color:var(--txt-d);line-height:1.7;margin-top:16px">
         Scarica il PDF del modulo compilato e firmato. Conserva una copia e consegna o invia via email il PDF al Consiglio Direttivo per completare la procedura di ammissione al Libro Soci.
     </p>
-    <button class="btn btn-dl" onclick="makePDF()">⬇ Scarica Modulo PDF Firmato (2 pagine)</button>
+    <button class="btn btn-dl" onclick="makePDF()">⬇ Scarica Modulo PDF Firmato</button>
 </div>
 </section>
 
@@ -802,7 +801,7 @@ function makePDF() {
         </div>
     </div>
     <!-- PAGINA 2: AUTOCERTIFICAZIONE SANITARIA -->
-    <div class="print-page" style="page-break-before:always">
+    <div class="print-page" data-pdf-page="2">
         <div class="print-hdr">
             <h2>A.S.D. "GHOST SOLDIERS POTENZA"</h2>
             <p>C.F. 96059710762 &nbsp;·&nbsp; ghostsoldierspotenza@gmail.com &nbsp;·&nbsp; ghostsoldierspotenza@pec.it</p>
@@ -836,7 +835,12 @@ function makePDF() {
         filename,
         image: { type: 'jpeg', quality: 0.97 },
         html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: {
+            mode: ['css', 'legacy'],
+            before: '[data-pdf-page="2"]',
+            avoid: ['.pf', '.pdecl', '.print-sig-row', '.print-manleva', '.print-stamp', '.print-hdr', '.print-priv']
+        }
     };
     html2pdf().set(opt).from(el).save().then(() => {
         el.classList.remove('rendering');
