@@ -486,7 +486,7 @@ const CONFIG = {
     emailjs_notify_template: "template_jefe718",
     asd_email:             "ghostsoldierspotenza@gmail.com",
     legale_rapp:           "Michele Tramutola",
-    anno_sp:               "2025/2026",
+    anno_sp:               "2026/2027",
     otp_expire_min:        15,
     test_mode:             false   // ← false per produzione con EmailJS configurato
 };
@@ -829,12 +829,13 @@ function makePDF() {
     const el = document.getElementById('print-area');
     el.classList.add('rendering');
     showLoad('Generazione PDF...');
+    window.scrollTo(0, 0);
     const filename = `GSP_Iscrizione_${fData.fullname.replace(/ /g,'_')}_AS${CONFIG.anno_sp.replace('/','_')}.pdf`;
     const opt = {
         margin: 0,
         filename,
         image: { type: 'jpeg', quality: 0.97 },
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0 },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         pagebreak: {
             mode: ['css', 'legacy'],
